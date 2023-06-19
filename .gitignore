@@ -1,4 +1,6 @@
-csv
+csv/*
+!csv/README.md
+
 
 
 # Byte-compiled / optimized / DLL files
