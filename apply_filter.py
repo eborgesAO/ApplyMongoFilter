@@ -7,9 +7,10 @@ import os
 #paths
 whitelist = "csv/whitelist_cat.csv"
 blacklist = "csv/blacklist_cat.csv"
+black_white_list="csv/white_black_list.csv"
 
 # connection
-dbname = "Skittles-Blacklisting-Prog"
+dbname = "Apply_Filter"
 db=connect_to_mongodb_src(dbname)
 
 #collections
@@ -20,26 +21,35 @@ whitelist_name = "src_whitelist_filtered"
 connection_to_whitelist = db["src_whitelist_filtered"]
 connection_to_blacklist = db["src_final_filtered"]
 
-def main():
-    print("1.Import Whitelist csv to MongoDB?")
-    print("2.Import Blacklist csv to MongoDB?")
-    print("3.Run only whitelist?")
-    print("4.Run only Blacklist?")
-    print("5.Run Whitelist & Blacklist?")
-    menu = input("Select which part of the program to execute: ")
-    if menu =="1":
-        importWhitelist()
-    if menu =="2":
-        importBlacklist()
-    if menu =="3":
-        whitelisting()
-    if menu =="4":
-        blacklisting()
-    if menu =="5":
-        whitelisting()
-        blacklisting()
+#dataframes
+bw = pd.read_csv(black_white_list)
+column_to_split = 'white_black'
 
-    print("Finished running the program")
+def main():
+    exit = False
+    while exit != True:
+        print("1.Import Whitelist csv to MongoDB?")
+        print("2.Import Blacklist csv to MongoDB?")
+        print("3.Run only whitelist?")
+        print("4.Run only Blacklist?")
+        print("5.Run Whitelist & Blacklist?")
+        print("6.Exit program")
+
+        menu = input("Select which part of the program to execute: ")
+        if menu =="1":
+            importWhitelist()
+        if menu =="2":
+            importBlacklist()
+        if menu =="3":
+            whitelisting()
+        if menu =="4":
+            blacklisting()
+        if menu =="5":
+            whitelisting()
+            blacklisting()
+        if menu =="6":
+            exit = True
+        print("Finished running the program\n\n")
 
 def importWhitelist():
     collection=db[whitelist_collection_name]
@@ -65,7 +75,7 @@ def createFiltered(collection,query,new_coll,x):
                 print(i)
                 new_coll.insert_many(batch)
                 batch=[]  
-        print(i)
+        # print(i)
         if batch != []:
             new_coll.insert_many(batch)
         else:
@@ -75,7 +85,7 @@ def createFiltered(collection,query,new_coll,x):
 
 def whitelisting():
     connection_to_whitelist.drop()
-    white_c = pd.read_csv(whitelist)
+    white_c = bw[bw[column_to_split] == 'w']
     for criteria in white_c['path']:
         if pd.isnull(criteria) or isinstance(criteria, np.float64):
             continue
@@ -88,22 +98,19 @@ def whitelisting():
                     '$regex': criteria
                 }
             }
+        elif "*" in criteria :
+            criteria = criteria.replace('.', '\\.')
+            criteria = criteria.replace('*', '(?:(?!/)[^/])+')
+            criteria = f"{criteria}$"
+            collection = db[src_name]
+            query = {
+                'filepath': {"$regex": criteria}, "filetype":"f"
+            }
         else:
             query = {
                 'filepath': criteria
             }
-        # print(query)
-        createFiltered(collection,query,connection_to_whitelist,0)  
-    for criteria in white_c['star']:
-        if pd.isnull(criteria) or isinstance(criteria, np.float64):
-            continue
-        criteria = criteria.replace('.', '\\.')
-        criteria = criteria.replace('*', '(?:(?!/)[^/])+')
-        criteria = f"{criteria}$"
-        collection = db[src_name]
-        query = {
-            'filepath': {"$regex": criteria}, "filetype":"f"
-        }
+        
         # print(query)
         createFiltered(collection,query,connection_to_whitelist,0)
 
@@ -112,7 +119,7 @@ def blacklisting():
     copy = connection_to_whitelist.find()
     connection_to_blacklist.insert_many(copy)
 
-    black_c = pd.read_csv(blacklist)
+    black_c = bw[bw[column_to_split] == 'b']
     for criteria in black_c['path']:
         if pd.isnull(criteria) or isinstance(criteria, np.float64):
             continue
@@ -126,24 +133,24 @@ def blacklisting():
                     '$regex': criteria
                 }
             }
+        elif "*" in criteria:
+            criteria = criteria.replace('.', '\\.')
+            criteria = criteria.replace('*', '(?:(?!/)[^/])+')
+            criteria = f"{criteria}$"
+            collection = db[whitelist_name]
+            query = {
+                'filepath': {"$regex": criteria}, "filetype":"f"
+            }
         else:
             query = {
                 'filepath': criteria
             }
         # print(query)
-        createFiltered(collection,query,connection_to_blacklist,1)  
-    for criteria in black_c['star']:
-        if pd.isnull(criteria) or isinstance(criteria, np.float64):
-            continue
-        criteria = criteria.replace('.', '\\.')
-        criteria = criteria.replace('*', '(?:(?!/)[^/])+')
-        criteria = f"{criteria}$"
-        collection = db[whitelist_name]
-        query = {
-            'filepath': {"$regex": criteria}, "filetype":"f"
-                        }
-        # print(query)
         createFiltered(collection,query,connection_to_blacklist,1)
+
+
+
+
 
 
 
