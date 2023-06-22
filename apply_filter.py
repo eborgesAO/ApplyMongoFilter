@@ -1,14 +1,11 @@
 from pymongo import MongoClient
 from connect_db import connect_to_mongodb_src
-import pandas as pd
-import numpy as np
-import os
+import pandas as pd, numpy as np
+import glob, os
 
 #paths
-whitelist = "csv/whitelist_cat.csv"
-blacklist = "csv/blacklist_cat.csv"
-black_white_list="csv/white_black_list.csv"
-
+csv="csv/"
+file_list = glob.glob(os.path.join(csv , "*.csv"))
 # connection
 dbname = "Apply_Filter"
 db=connect_to_mongodb_src(dbname)
@@ -22,8 +19,16 @@ connection_to_whitelist = db["src_whitelist_filtered"]
 connection_to_blacklist = db["src_final_filtered"]
 
 #dataframes
-bw = pd.read_csv(black_white_list)
-column_to_split = 'white_black'
+dataframes = []
+for file in file_list:
+    dataframe = pd.read_csv(file)
+    dataframes.append(dataframe)
+concatenated_df = pd.concat(dataframes)
+concatenated_df = concatenated_df.reset_index(drop=True)
+bw = concatenated_df
+column_to_split = 'filter_type'
+white_c = bw[bw[column_to_split] == 'w']
+black_c = bw[bw[column_to_split] == 'b']
 
 def main():
     exit = False
@@ -47,21 +52,21 @@ def main():
         if menu =="5":
             whitelisting()
             blacklisting()
-        if menu =="6":
+        if menu =="6" or menu == "q":
             exit = True
         print("Finished running the program\n\n")
 
 def importWhitelist():
     collection=db[whitelist_collection_name]
     collection.drop()
-    command=f"mongoimport --host localhost --port 27017 --db {dbname} --collection {whitelist_collection_name} --type csv --file {whitelist} --headerline"
-    os.system(command)
+    data = white_c.to_dict(orient='records')
+    collection.insert_many(data)
 
 def importBlacklist():
     collection=db[blacklist_collection_name]
     collection.drop()
-    command=f"mongoimport --host localhost --port 27017 --db {dbname} --collection {blacklist_collection_name} --type csv --file {blacklist} --headerline"
-    os.system(command)
+    data = black_c.to_dict(orient='records')
+    collection.insert_many(data)
 
 def createFiltered(collection,query,new_coll,x):    
     batch=[]
@@ -85,7 +90,6 @@ def createFiltered(collection,query,new_coll,x):
 
 def whitelisting():
     connection_to_whitelist.drop()
-    white_c = bw[bw[column_to_split] == 'w']
     for criteria in white_c['path']:
         if pd.isnull(criteria) or isinstance(criteria, np.float64):
             continue
@@ -118,8 +122,6 @@ def blacklisting():
     connection_to_blacklist.drop()
     copy = connection_to_whitelist.find()
     connection_to_blacklist.insert_many(copy)
-
-    black_c = bw[bw[column_to_split] == 'b']
     for criteria in black_c['path']:
         if pd.isnull(criteria) or isinstance(criteria, np.float64):
             continue
@@ -147,10 +149,6 @@ def blacklisting():
             }
         # print(query)
         createFiltered(collection,query,connection_to_blacklist,1)
-
-
-
-
 
 
 
