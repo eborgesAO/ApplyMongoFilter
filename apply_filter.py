@@ -7,16 +7,16 @@ import glob, os
 csv="csv/"
 file_list = glob.glob(os.path.join(csv , "*.csv"))
 # connection
-dbname = "Apply_Filter"
-db=connect_to_mongodb_src(dbname)
+database_name = "Apply_Filter"
+db=connect_to_mongodb_src(database_name)
 
 #collections
-whitelist_collection_name = "whitelist"
-blacklist_collection_name = "blacklist"
+filters_collection_name = "filters"
 src_name = "src_listing"
 whitelist_name = "src_whitelist_filtered"
 connection_to_whitelist = db["src_whitelist_filtered"]
 connection_to_blacklist = db["src_final_filtered"]
+connection_to_rejected = db["blacklist_rejects"]
 
 #dataframes
 dataframes = []
@@ -33,40 +33,33 @@ black_c = bw[bw[column_to_split] == 'b']
 def main():
     exit = False
     while exit != True:
-        print("1.Import Whitelist csv to MongoDB?")
-        print("2.Import Blacklist csv to MongoDB?")
-        print("3.Run only whitelist?")
-        print("4.Run only Blacklist?")
-        print("5.Run Whitelist & Blacklist?")
-        print("6.Exit program")
+        print("0.Exit program?")
+        print("1.Import Filters csv to MongoDB?")
+        print("2.Run only whitelist?")
+        print("3.Run only Blacklist?")
+        print("4.Run Whitelist & Blacklist?")
 
         menu = input("Select which part of the program to execute: ")
+        if menu =="0" or menu == "q":
+                exit = True
         if menu =="1":
-            importWhitelist()
+            importFilters()
         if menu =="2":
-            importBlacklist()
+            whitelisting()
         if menu =="3":
-            whitelisting()
+            blacklisting()
         if menu =="4":
-            blacklisting()
-        if menu =="5":
             whitelisting()
             blacklisting()
-        if menu =="6" or menu == "q":
-            exit = True
-        print("Finished running the program\n\n")
 
-def importWhitelist():
-    collection=db[whitelist_collection_name]
-    collection.drop()
-    data = white_c.to_dict(orient='records')
-    collection.insert_many(data)
+        print("Finished running the program\n")
 
-def importBlacklist():
-    collection=db[blacklist_collection_name]
+def importFilters():
+    collection=db[filters_collection_name]
     collection.drop()
-    data = black_c.to_dict(orient='records')
-    collection.insert_many(data)
+    for file in file_list:
+        command=f"mongoimport --host localhost --port 27017 --db {database_name} --collection {filters_collection_name} --type csv --file {file} --headerline"
+        os.system(command)
 
 def createFiltered(collection,query,new_coll,x):    
     batch=[]
@@ -148,7 +141,9 @@ def blacklisting():
                 'filepath': criteria
             }
         # print(query)
+        createFiltered(collection,query,connection_to_rejected,0)
         createFiltered(collection,query,connection_to_blacklist,1)
+
 
 
 
