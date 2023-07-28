@@ -9,6 +9,3 @@ def connect_to_mongodb_src(database_name):
 
 
     return db
-
-# Skittles-Blacklisting-Prog
-# src_listing
